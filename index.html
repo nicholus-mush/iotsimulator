@@ -1,0 +1,1311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoT Dashboard Simulator</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/luxon@3.3.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.3.1"></script>
+    <style>
+        :root {
+            --primary: #4361ee;
+            --primary-light: #4895ef;
+            --secondary: #3f37c9;
+            --success: #4cc9f0;
+            --warning: #f8961e;
+            --danger: #f94144;
+            --dark: #1d3557;
+            --light: #f8f9fa;
+            --gray: #6c757d;
+            --border: #dee2e6;
+            --shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            --sidebar-width: 300px;
+            --inspector-width: 300px;
+        }
+
+        [data-theme="dark"] {
+            --primary: #5a7dff;
+            --primary-light: #6d95ff;
+            --secondary: #4a45c9;
+            --success: #5cd9ff;
+            --warning: #ffa94d;
+            --danger: #ff6b6b;
+            --dark: #121212;
+            --light: #2d2d2d;
+            --gray: #a0a0a0;
+            --border: #444;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: var(--light);
+            color: var(--dark);
+            transition: background-color 0.3s, color 0.3s;
+            overflow: hidden;
+        }
+
+        .app-container {
+            display: flex;
+            height: 100vh;
+        }
+
+        /* Sidebar Styles */
+        .sidebar {
+            width: var(--sidebar-width);
+            background-color: var(--light);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .sidebar-title {
+            font-size: 1.4rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .sidebar-title i {
+            color: var(--primary);
+        }
+
+        .theme-toggle {
+            background: none;
+            border: none;
+            color: var(--gray);
+            cursor: pointer;
+            font-size: 1.2rem;
+            padding: 5px;
+            border-radius: 50%;
+            transition: all 0.3s;
+        }
+
+        .theme-toggle:hover {
+            background-color: var(--border);
+        }
+
+        .sensor-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px 0;
+        }
+
+        .sensor-item {
+            padding: 15px 20px;
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            transition: background-color 0.3s;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .sensor-item:hover {
+            background-color: rgba(0, 0, 0, 0.03);
+        }
+
+        .sensor-item.active {
+            background-color: rgba(67, 97, 238, 0.1);
+            border-left: 3px solid var(--primary);
+        }
+
+        .sensor-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .sensor-name {
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+
+        .sensor-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: var(--success);
+        }
+
+        .status-indicator.inactive {
+            background-color: var(--gray);
+        }
+
+        .sensor-value {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .sensor-meta {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85rem;
+            color: var(--gray);
+        }
+
+        .sensor-sparkline {
+            height: 30px;
+            margin-top: 5px;
+        }
+
+        /* Main Content Styles */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .top-bar {
+            padding: 15px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: var(--light);
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--secondary);
+        }
+
+        .btn-outline {
+            background-color: transparent;
+            color: var(--primary);
+            border: 1px solid var(--primary);
+        }
+
+        .btn-outline:hover {
+            background-color: var(--primary);
+            color: white;
+        }
+
+        .btn-danger {
+            background-color: var(--danger);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background-color: #d32f2f;
+        }
+
+        .btn-success {
+            background-color: var(--success);
+            color: white;
+        }
+
+        .btn-success:hover {
+            background-color: #3aa8d0;
+        }
+
+        .chart-container {
+            flex: 1;
+            padding: 20px;
+            position: relative;
+        }
+
+        #mainChart {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Inspector Panel Styles */
+        .inspector {
+            width: var(--inspector-width);
+            background-color: var(--light);
+            border-left: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .inspector-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border);
+            font-size: 1.2rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .inspector-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .sensor-details {
+            margin-bottom: 30px;
+        }
+
+        .detail-group {
+            margin-bottom: 20px;
+        }
+
+        .detail-label {
+            font-size: 0.9rem;
+            color: var(--gray);
+            margin-bottom: 5px;
+        }
+
+        .detail-value {
+            font-size: 1.1rem;
+            font-weight: 500;
+        }
+
+        .json-view {
+            background-color: rgba(0, 0, 0, 0.05);
+            border-radius: 6px;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            max-height: 200px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background-color: var(--light);
+            color: var(--dark);
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .alert-banner {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 8px;
+            background-color: var(--danger);
+            color: white;
+            box-shadow: var(--shadow);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            z-index: 1000;
+            transform: translateX(150%);
+            transition: transform 0.3s;
+        }
+
+        .alert-banner.show {
+            transform: translateX(0);
+        }
+
+        .alert-banner.warning {
+            background-color: var(--warning);
+        }
+
+        /* Responsive Design */
+        @media (max-width: 1024px) {
+            .inspector {
+                position: fixed;
+                top: 0;
+                right: 0;
+                height: 100%;
+                transform: translateX(100%);
+                transition: transform 0.3s;
+                z-index: 100;
+                box-shadow: -5px 0 15px rgba(0, 0, 0, 0.1);
+            }
+
+            .inspector.open {
+                transform: translateX(0);
+            }
+
+            .sidebar {
+                width: 250px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .app-container {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+                height: 200px;
+                border-right: none;
+                border-bottom: 1px solid var(--border);
+            }
+
+            .sensor-list {
+                display: flex;
+                overflow-x: auto;
+            }
+
+            .sensor-item {
+                min-width: 200px;
+                border-bottom: none;
+                border-right: 1px solid var(--border);
+            }
+
+            .inspector {
+                width: 100%;
+            }
+        }
+
+        /* Animation for new readings */
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .sensor-value.updated {
+            animation: pulse 0.5s ease;
+        }
+
+        /* Toast notifications */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            padding: 12px 20px;
+            background-color: var(--dark);
+            color: white;
+            border-radius: 8px;
+            box-shadow: var(--shadow);
+            transition: transform 0.3s;
+            z-index: 1000;
+        }
+
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar with sensor list -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-title">
+                    <i class="fas fa-microchip"></i> IoT Dashboard
+                </div>
+                <button class="theme-toggle" id="themeToggle">
+                    <i class="fas fa-moon"></i>
+                </button>
+            </div>
+            <div class="sensor-list" id="sensorList">
+                <!-- Sensors will be dynamically added here -->
+            </div>
+        </div>
+
+        <!-- Main content area -->
+        <div class="main-content">
+            <div class="top-bar">
+                <div class="controls">
+                    <button class="btn btn-primary" id="playPauseBtn">
+                        <i class="fas fa-pause"></i> Pause
+                    </button>
+                    <button class="btn btn-outline" id="addSensorBtn">
+                        <i class="fas fa-plus"></i> Add Sensor
+                    </button>
+                    <button class="btn btn-outline" id="exportBtn">
+                        <i class="fas fa-download"></i> Export
+                    </button>
+                    <button class="btn btn-outline" id="importBtn">
+                        <i class="fas fa-upload"></i> Import
+                    </button>
+                    <input type="file" id="importFile" style="display: none;" accept=".json">
+                </div>
+                <div class="controls">
+                    <button class="btn btn-outline" id="clearHistoryBtn">
+                        <i class="fas fa-trash"></i> Clear History
+                    </button>
+                    <button class="btn btn-success" id="replayBtn">
+                        <i class="fas fa-play"></i> Replay
+                    </button>
+                </div>
+            </div>
+            <div class="chart-container">
+                <canvas id="mainChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Inspector panel -->
+        <div class="inspector" id="inspector">
+            <div class="inspector-header">
+                <i class="fas fa-info-circle"></i> Sensor Details
+            </div>
+            <div class="inspector-content">
+                <div class="sensor-details" id="sensorDetails">
+                    <!-- Sensor details will be dynamically added here -->
+                </div>
+                <div class="detail-group">
+                    <div class="detail-label">Raw JSON Data</div>
+                    <div class="json-view" id="sensorJson"></div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="sensorName">Sensor Name</label>
+                    <input type="text" class="form-input" id="sensorName">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="sensorType">Sensor Type</label>
+                    <select class="form-input" id="sensorType">
+                        <option value="temperature">Temperature</option>
+                        <option value="humidity">Humidity</option>
+                        <option value="pressure">Pressure</option>
+                        <option value="light">Light</option>
+                        <option value="battery">Battery</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="minValue">Min Value</label>
+                    <input type="number" class="form-input" id="minValue">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="maxValue">Max Value</label>
+                    <input type="number" class="form-input" id="maxValue">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="updateInterval">Update Interval (ms)</label>
+                    <input type="number" class="form-input" id="updateInterval">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="noiseLevel">Noise Level</label>
+                    <input type="number" class="form-input" id="noiseLevel" step="0.1" min="0" max="10">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="alertThreshold">Alert Threshold</label>
+                    <input type="number" class="form-input" id="alertThreshold">
+                </div>
+                <button class="btn btn-primary" id="saveSensorBtn">
+                    <i class="fas fa-save"></i> Save Changes
+                </button>
+                <button class="btn btn-danger" id="removeSensorBtn">
+                    <i class="fas fa-trash"></i> Remove Sensor
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alert banner -->
+    <div class="alert-banner" id="alertBanner">
+        <i class="fas fa-exclamation-triangle"></i>
+        <span id="alertText">Sensor value exceeded threshold!</span>
+    </div>
+
+    <!-- Toast notification -->
+    <div class="toast" id="toast">
+        <span id="toastText">Operation completed successfully</span>
+    </div>
+
+    <!-- Font Awesome for icons -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+
+    <script>
+        // IoT Dashboard Simulator
+        class IoTDashboard {
+            constructor() {
+                this.sensors = [];
+                this.chart = null;
+                this.isPlaying = true;
+                this.selectedSensor = null;
+                this.historyLimit = 100; // Keep last 100 readings per sensor
+                this.replayMode = false;
+                this.replaySpeed = 5; // 5x speed
+                this.theme = 'light';
+                
+                this.initializeApp();
+            }
+
+            // Initialize the application
+            initializeApp() {
+                this.loadFromLocalStorage();
+                this.initializeChart();
+                this.setupEventListeners();
+                this.startSensorUpdates();
+                this.renderSensorList();
+                
+                // Select first sensor by default
+                if (this.sensors.length > 0) {
+                    this.selectSensor(this.sensors[0].id);
+                }
+            }
+
+            // Create a new sensor
+            createSensor(config = {}) {
+                const sensorId = 'sensor_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                
+                const defaultConfig = {
+                    id: sensorId,
+                    name: `Sensor ${this.sensors.length + 1}`,
+                    type: 'temperature',
+                    unit: '°C',
+                    min: 20,
+                    max: 30,
+                    currentValue: 25,
+                    intervalMs: 2000,
+                    noise: 0.5,
+                    enabled: true,
+                    alertThreshold: null,
+                    readings: [],
+                    color: this.getRandomColor()
+                };
+
+                const sensor = { ...defaultConfig, ...config };
+                
+                // Set unit based on type
+                if (sensor.type === 'temperature') sensor.unit = '°C';
+                else if (sensor.type === 'humidity') sensor.unit = '%';
+                else if (sensor.type === 'pressure') sensor.unit = 'hPa';
+                else if (sensor.type === 'light') sensor.unit = 'lux';
+                else if (sensor.type === 'battery') sensor.unit = '%';
+                
+                this.sensors.push(sensor);
+                this.renderSensorList();
+                this.saveToLocalStorage();
+                
+                return sensor;
+            }
+
+            // Start sensor updates
+            startSensorUpdates() {
+                this.sensors.forEach(sensor => {
+                    if (sensor.enabled) {
+                        this.startSensor(sensor.id);
+                    }
+                });
+            }
+
+            // Start a specific sensor
+            startSensor(sensorId) {
+                const sensor = this.sensors.find(s => s.id === sensorId);
+                if (!sensor || sensor.intervalId) return;
+
+                sensor.intervalId = setInterval(() => {
+                    this.generateReading(sensorId);
+                }, sensor.intervalMs);
+            }
+
+            // Stop a specific sensor
+            stopSensor(sensorId) {
+                const sensor = this.sensors.find(s => s.id === sensorId);
+                if (!sensor || !sensor.intervalId) return;
+
+                clearInterval(sensor.intervalId);
+                sensor.intervalId = null;
+            }
+
+            // Generate a reading for a sensor
+            generateReading(sensorId) {
+                const sensor = this.sensors.find(s => s.id === sensorId);
+                if (!sensor) return;
+
+                // Random walk algorithm with noise
+                const change = (Math.random() - 0.5) * 2 * sensor.noise;
+                let newValue = sensor.currentValue + change;
+                
+                // Clamp value to min/max range
+                newValue = Math.max(sensor.min, Math.min(sensor.max, newValue));
+                
+                // Add some tendency to drift toward the middle of the range
+                const middle = (sensor.min + sensor.max) / 2;
+                const drift = (middle - newValue) * 0.05;
+                newValue += drift;
+                
+                // Clamp again after drift
+                newValue = Math.max(sensor.min, Math.min(sensor.max, newValue));
+                
+                sensor.currentValue = newValue;
+                
+                // Add reading to history
+                const reading = {
+                    value: newValue,
+                    timestamp: new Date().toISOString()
+                };
+                
+                sensor.readings.push(reading);
+                
+                // Limit history size
+                if (sensor.readings.length > this.historyLimit) {
+                    sensor.readings = sensor.readings.slice(-this.historyLimit);
+                }
+                
+                // Check for alerts
+                if (sensor.alertThreshold && Math.abs(newValue - sensor.alertThreshold) < sensor.noise) {
+                    this.showAlert(sensor, newValue);
+                }
+                
+                // Update UI
+                this.updateSensorDisplay(sensorId);
+                this.updateChart();
+                
+                // Save to localStorage periodically
+                if (sensor.readings.length % 10 === 0) {
+                    this.saveToLocalStorage();
+                }
+            }
+
+            // Update sensor display in the sidebar
+            updateSensorDisplay(sensorId) {
+                const sensor = this.sensors.find(s => s.id === sensorId);
+                if (!sensor) return;
+
+                const sensorElement = document.querySelector(`[data-sensor-id="${sensorId}"]`);
+                if (sensorElement) {
+                    const valueElement = sensorElement.querySelector('.sensor-value');
+                    valueElement.textContent = `${sensor.currentValue.toFixed(1)}${sensor.unit}`;
+                    valueElement.classList.add('updated');
+                    
+                    setTimeout(() => {
+                        valueElement.classList.remove('updated');
+                    }, 500);
+                    
+                    // Update sparkline
+                    this.updateSparkline(sensorElement, sensor);
+                }
+            }
+
+            // Update sparkline for a sensor
+            updateSparkline(sensorElement, sensor) {
+                const sparklineCanvas = sensorElement.querySelector('.sensor-sparkline');
+                if (!sparklineCanvas) return;
+                
+                const ctx = sparklineCanvas.getContext('2d');
+                const width = sparklineCanvas.width;
+                const height = sparklineCanvas.height;
+                
+                // Clear canvas
+                ctx.clearRect(0, 0, width, height);
+                
+                // Draw sparkline
+                if (sensor.readings.length < 2) return;
+                
+                const values = sensor.readings.map(r => r.value);
+                const min = Math.min(...values);
+                const max = Math.max(...values);
+                const range = max - min || 1;
+                
+                ctx.beginPath();
+                ctx.strokeStyle = sensor.color;
+                ctx.lineWidth = 2;
+                
+                values.forEach((value, index) => {
+                    const x = (index / (values.length - 1)) * width;
+                    const y = height - ((value - min) / range) * height;
+                    
+                    if (index === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                });
+                
+                ctx.stroke();
+            }
+
+            // Initialize the main chart
+            initializeChart() {
+                const ctx = document.getElementById('mainChart').getContext('2d');
+                
+                this.chart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        datasets: []
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: {
+                            mode: 'index',
+                            intersect: false
+                        },
+                        scales: {
+                            x: {
+                                type: 'time',
+                                time: {
+                                    unit: 'second',
+                                    displayFormats: {
+                                        second: 'HH:mm:ss'
+                                    }
+                                },
+                                title: {
+                                    display: true,
+                                    text: 'Time'
+                                }
+                            },
+                            y: {
+                                beginAtZero: false,
+                                title: {
+                                    display: true,
+                                    text: 'Value'
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'top'
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const sensor = context.dataset.sensor;
+                                        return `${sensor.name}: ${context.parsed.y.toFixed(1)}${sensor.unit}`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            // Update the chart with current data
+            updateChart() {
+                if (!this.chart) return;
+                
+                const datasets = this.sensors
+                    .filter(sensor => sensor.enabled)
+                    .map(sensor => {
+                        return {
+                            label: sensor.name,
+                            data: sensor.readings.map(reading => ({
+                                x: reading.timestamp,
+                                y: reading.value
+                            })),
+                            borderColor: sensor.color,
+                            backgroundColor: sensor.color + '20',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            tension: 0.2,
+                            sensor: sensor
+                        };
+                    });
+                
+                this.chart.data.datasets = datasets;
+                this.chart.update('none');
+            }
+
+            // Render the sensor list in the sidebar
+            renderSensorList() {
+                const sensorList = document.getElementById('sensorList');
+                sensorList.innerHTML = '';
+                
+                this.sensors.forEach(sensor => {
+                    const sensorElement = document.createElement('div');
+                    sensorElement.className = `sensor-item ${this.selectedSensor === sensor.id ? 'active' : ''}`;
+                    sensorElement.setAttribute('data-sensor-id', sensor.id);
+                    
+                    sensorElement.innerHTML = `
+                        <div class="sensor-header">
+                            <div class="sensor-name">${sensor.name}</div>
+                            <div class="sensor-status">
+                                <div class="status-indicator ${sensor.enabled ? '' : 'inactive'}"></div>
+                                <span>${sensor.enabled ? 'Active' : 'Paused'}</span>
+                            </div>
+                        </div>
+                        <div class="sensor-value">${sensor.currentValue ? sensor.currentValue.toFixed(1) + sensor.unit : '--'}</div>
+                        <div class="sensor-meta">
+                            <span>${sensor.type}</span>
+                            <span>${sensor.intervalMs}ms</span>
+                        </div>
+                        <canvas class="sensor-sparkline" width="200" height="30"></canvas>
+                    `;
+                    
+                    sensorElement.addEventListener('click', () => {
+                        this.selectSensor(sensor.id);
+                    });
+                    
+                    sensorList.appendChild(sensorElement);
+                    
+                    // Draw initial sparkline
+                    this.updateSparkline(sensorElement, sensor);
+                });
+            }
+
+            // Select a sensor to show details
+            selectSensor(sensorId) {
+                this.selectedSensor = sensorId;
+                this.renderSensorList();
+                this.showSensorDetails(sensorId);
+            }
+
+            // Show sensor details in the inspector
+            showSensorDetails(sensorId) {
+                const sensor = this.sensors.find(s => s.id === sensorId);
+                if (!sensor) return;
+                
+                const sensorDetails = document.getElementById('sensorDetails');
+                const sensorJson = document.getElementById('sensorJson');
+                
+                // Update details view
+                sensorDetails.innerHTML = `
+                    <div class="detail-group">
+                        <div class="detail-label">Current Value</div>
+                        <div class="detail-value">${sensor.currentValue ? sensor.currentValue.toFixed(2) + sensor.unit : '--'}</div>
+                    </div>
+                    <div class="detail-group">
+                        <div class="detail-label">Type</div>
+                        <div class="detail-value">${sensor.type}</div>
+                    </div>
+                    <div class="detail-group">
+                        <div class="detail-label">Range</div>
+                        <div class="detail-value">${sensor.min} - ${sensor.max} ${sensor.unit}</div>
+                    </div>
+                    <div class="detail-group">
+                        <div class="detail-label">Update Interval</div>
+                        <div class="detail-value">${sensor.intervalMs} ms</div>
+                    </div>
+                    <div class="detail-group">
+                        <div class="detail-label">Noise Level</div>
+                        <div class="detail-value">${sensor.noise}</div>
+                    </div>
+                    <div class="detail-group">
+                        <div class="detail-label">Readings Count</div>
+                        <div class="detail-value">${sensor.readings.length}</div>
+                    </div>
+                `;
+                
+                // Update JSON view
+                sensorJson.textContent = JSON.stringify(sensor, null, 2);
+                
+                // Update form fields
+                document.getElementById('sensorName').value = sensor.name;
+                document.getElementById('sensorType').value = sensor.type;
+                document.getElementById('minValue').value = sensor.min;
+                document.getElementById('maxValue').value = sensor.max;
+                document.getElementById('updateInterval').value = sensor.intervalMs;
+                document.getElementById('noiseLevel').value = sensor.noise;
+                document.getElementById('alertThreshold').value = sensor.alertThreshold || '';
+                
+                // Show inspector on mobile
+                if (window.innerWidth <= 1024) {
+                    document.getElementById('inspector').classList.add('open');
+                }
+            }
+
+            // Save sensor changes from the form
+            saveSensorChanges() {
+                if (!this.selectedSensor) return;
+                
+                const sensor = this.sensors.find(s => s.id === this.selectedSensor);
+                if (!sensor) return;
+                
+                // Stop sensor if it's running
+                const wasRunning = sensor.enabled && sensor.intervalId;
+                if (wasRunning) {
+                    this.stopSensor(sensor.id);
+                }
+                
+                // Update sensor properties
+                sensor.name = document.getElementById('sensorName').value;
+                sensor.type = document.getElementById('sensorType').value;
+                sensor.min = parseFloat(document.getElementById('minValue').value);
+                sensor.max = parseFloat(document.getElementById('maxValue').value);
+                sensor.intervalMs = parseInt(document.getElementById('updateInterval').value);
+                sensor.noise = parseFloat(document.getElementById('noiseLevel').value);
+                
+                const alertThreshold = document.getElementById('alertThreshold').value;
+                sensor.alertThreshold = alertThreshold ? parseFloat(alertThreshold) : null;
+                
+                // Update unit based on type
+                if (sensor.type === 'temperature') sensor.unit = '°C';
+                else if (sensor.type === 'humidity') sensor.unit = '%';
+                else if (sensor.type === 'pressure') sensor.unit = 'hPa';
+                else if (sensor.type === 'light') sensor.unit = 'lux';
+                else if (sensor.type === 'battery') sensor.unit = '%';
+                
+                // Restart sensor if it was running
+                if (wasRunning) {
+                    this.startSensor(sensor.id);
+                }
+                
+                // Update UI
+                this.renderSensorList();
+                this.showSensorDetails(sensor.id);
+                this.updateChart();
+                this.saveToLocalStorage();
+                
+                this.showToast('Sensor updated successfully');
+            }
+
+            // Remove the selected sensor
+            removeSelectedSensor() {
+                if (!this.selectedSensor) return;
+                
+                if (confirm('Are you sure you want to remove this sensor?')) {
+                    this.stopSensor(this.selectedSensor);
+                    this.sensors = this.sensors.filter(s => s.id !== this.selectedSensor);
+                    this.selectedSensor = null;
+                    
+                    this.renderSensorList();
+                    this.updateChart();
+                    this.saveToLocalStorage();
+                    
+                    // Clear inspector
+                    document.getElementById('sensorDetails').innerHTML = '';
+                    document.getElementById('sensorJson').textContent = '';
+                    
+                    this.showToast('Sensor removed successfully');
+                }
+            }
+
+            // Toggle play/pause for all sensors
+            togglePlayPause() {
+                this.isPlaying = !this.isPlaying;
+                const button = document.getElementById('playPauseBtn');
+                
+                if (this.isPlaying) {
+                    this.sensors.forEach(sensor => {
+                        if (sensor.enabled) {
+                            this.startSensor(sensor.id);
+                        }
+                    });
+                    button.innerHTML = '<i class="fas fa-pause"></i> Pause';
+                    this.showToast('Simulation resumed');
+                } else {
+                    this.sensors.forEach(sensor => {
+                        this.stopSensor(sensor.id);
+                    });
+                    button.innerHTML = '<i class="fas fa-play"></i> Play';
+                    this.showToast('Simulation paused');
+                }
+            }
+
+            // Add a new sensor
+            addNewSensor() {
+                const newSensor = this.createSensor();
+                this.selectSensor(newSensor.id);
+                this.showToast('New sensor added');
+            }
+
+            // Export data as JSON
+            exportData() {
+                const data = {
+                    sensors: this.sensors,
+                    exportDate: new Date().toISOString()
+                };
+                
+                const dataStr = JSON.stringify(data, null, 2);
+                const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                
+                const url = URL.createObjectURL(dataBlob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `iot-dashboard-export-${new Date().toISOString().split('T')[0]}.json`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+                
+                this.showToast('Data exported successfully');
+            }
+
+            // Import data from JSON
+            importData(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+                
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = JSON.parse(e.target.result);
+                        
+                        if (!data.sensors || !Array.isArray(data.sensors)) {
+                            throw new Error('Invalid file format');
+                        }
+                        
+                        // Stop all current sensors
+                        this.sensors.forEach(sensor => {
+                            this.stopSensor(sensor.id);
+                        });
+                        
+                        // Replace sensors with imported data
+                        this.sensors = data.sensors;
+                        
+                        // Restart enabled sensors
+                        this.sensors.forEach(sensor => {
+                            if (sensor.enabled) {
+                                this.startSensor(sensor.id);
+                            }
+                        });
+                        
+                        this.renderSensorList();
+                        this.updateChart();
+                        this.saveToLocalStorage();
+                        
+                        if (this.sensors.length > 0) {
+                            this.selectSensor(this.sensors[0].id);
+                        }
+                        
+                        this.showToast('Data imported successfully');
+                    } catch (error) {
+                        alert('Error importing data: ' + error.message);
+                    }
+                };
+                
+                reader.readAsText(file);
+                event.target.value = ''; // Reset file input
+            }
+
+            // Clear history for all sensors
+            clearHistory() {
+                if (confirm('Are you sure you want to clear all sensor history?')) {
+                    this.sensors.forEach(sensor => {
+                        sensor.readings = [];
+                    });
+                    
+                    this.updateChart();
+                    this.renderSensorList();
+                    this.saveToLocalStorage();
+                    
+                    this.showToast('History cleared successfully');
+                }
+            }
+
+            // Toggle theme between light and dark
+            toggleTheme() {
+                this.theme = this.theme === 'light' ? 'dark' : 'light';
+                document.documentElement.setAttribute('data-theme', this.theme);
+                
+                const themeToggle = document.getElementById('themeToggle');
+                themeToggle.innerHTML = this.theme === 'light' ? 
+                    '<i class="fas fa-moon"></i>' : 
+                    '<i class="fas fa-sun"></i>';
+                
+                this.saveToLocalStorage();
+            }
+
+            // Show alert when threshold is exceeded
+            showAlert(sensor, value) {
+                const alertBanner = document.getElementById('alertBanner');
+                const alertText = document.getElementById('alertText');
+                
+                alertText.textContent = `${sensor.name} value (${value.toFixed(1)}${sensor.unit}) exceeded threshold!`;
+                alertBanner.classList.add('show');
+                
+                setTimeout(() => {
+                    alertBanner.classList.remove('show');
+                }, 5000);
+            }
+
+            // Show toast notification
+            showToast(message) {
+                const toast = document.getElementById('toast');
+                const toastText = document.getElementById('toastText');
+                
+                toastText.textContent = message;
+                toast.classList.add('show');
+                
+                setTimeout(() => {
+                    toast.classList.remove('show');
+                }, 3000);
+            }
+
+            // Save to localStorage
+            saveToLocalStorage() {
+                const data = {
+                    sensors: this.sensors.map(sensor => ({
+                        ...sensor,
+                        intervalId: null // Don't save interval IDs
+                    })),
+                    theme: this.theme
+                };
+                
+                localStorage.setItem('iotDashboard', JSON.stringify(data));
+            }
+
+            // Load from localStorage
+            loadFromLocalStorage() {
+                const saved = localStorage.getItem('iotDashboard');
+                if (saved) {
+                    try {
+                        const data = JSON.parse(saved);
+                        
+                        if (data.sensors && Array.isArray(data.sensors)) {
+                            this.sensors = data.sensors;
+                        }
+                        
+                        if (data.theme) {
+                            this.theme = data.theme;
+                            document.documentElement.setAttribute('data-theme', this.theme);
+                            
+                            const themeToggle = document.getElementById('themeToggle');
+                            themeToggle.innerHTML = this.theme === 'light' ? 
+                                '<i class="fas fa-moon"></i>' : 
+                                '<i class="fas fa-sun"></i>';
+                        }
+                    } catch (error) {
+                        console.error('Error loading saved data:', error);
+                    }
+                }
+                
+                // If no sensors exist, create some defaults
+                if (this.sensors.length === 0) {
+                    this.createSensor({
+                        name: 'Living Room Temp',
+                        type: 'temperature',
+                        min: 18,
+                        max: 26,
+                        currentValue: 22,
+                        intervalMs: 2000,
+                        noise: 0.3,
+                        color: '#ff6384'
+                    });
+                    
+                    this.createSensor({
+                        name: 'Kitchen Humidity',
+                        type: 'humidity',
+                        min: 30,
+                        max: 70,
+                        currentValue: 45,
+                        intervalMs: 3000,
+                        noise: 0.5,
+                        color: '#36a2eb'
+                    });
+                    
+                    this.createSensor({
+                        name: 'Outside Pressure',
+                        type: 'pressure',
+                        min: 980,
+                        max: 1020,
+                        currentValue: 1013,
+                        intervalMs: 5000,
+                        noise: 0.2,
+                        color: '#4bc0c0'
+                    });
+                }
+            }
+
+            // Get a random color for sensors
+            getRandomColor() {
+                const colors = [
+                    '#ff6384', '#36a2eb', '#ffce56', '#4bc0c0', 
+                    '#9966ff', '#ff9f40', '#8ac926', '#1982c4',
+                    '#6a4c93', '#f15bb5', '#fee440', '#00bbf9'
+                ];
+                return colors[Math.floor(Math.random() * colors.length)];
+            }
+
+            // Set up event listeners
+            setupEventListeners() {
+                document.getElementById('playPauseBtn').addEventListener('click', () => {
+                    this.togglePlayPause();
+                });
+                
+                document.getElementById('addSensorBtn').addEventListener('click', () => {
+                    this.addNewSensor();
+                });
+                
+                document.getElementById('exportBtn').addEventListener('click', () => {
+                    this.exportData();
+                });
+                
+                document.getElementById('importBtn').addEventListener('click', () => {
+                    document.getElementById('importFile').click();
+                });
+                
+                document.getElementById('importFile').addEventListener('change', (e) => {
+                    this.importData(e);
+                });
+                
+                document.getElementById('clearHistoryBtn').addEventListener('click', () => {
+                    this.clearHistory();
+                });
+                
+                document.getElementById('replayBtn').addEventListener('click', () => {
+                    // Replay functionality would go here
+                    this.showToast('Replay mode would start here');
+                });
+                
+                document.getElementById('saveSensorBtn').addEventListener('click', () => {
+                    this.saveSensorChanges();
+                });
+                
+                document.getElementById('removeSensorBtn').addEventListener('click', () => {
+                    this.removeSelectedSensor();
+                });
+                
+                document.getElementById('themeToggle').addEventListener('click', () => {
+                    this.toggleTheme();
+                });
+                
+                // Close inspector on mobile when clicking outside
+                document.addEventListener('click', (e) => {
+                    const inspector = document.getElementById('inspector');
+                    if (window.innerWidth <= 1024 && 
+                        inspector.classList.contains('open') &&
+                        !inspector.contains(e.target) &&
+                        !e.target.closest('.sensor-item')) {
+                        inspector.classList.remove('open');
+                    }
+                });
+            }
+        }
+
+        // Initialize the dashboard when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new IoTDashboard();
+        });
+    </script>
+</body>
+</html>
